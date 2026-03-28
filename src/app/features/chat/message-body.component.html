@@ -1,0 +1,73 @@
+<div class="message-body">
+  @for (seg of segments(); track $index) {
+    @switch (seg.kind) {
+      @case ('text') {
+        <div class="msg-text">{{ seg.text }}</div>
+      }
+      @case ('code') {
+        @if (seg.language === 'inline') {
+          <div class="msg-inline msg-inline-code">
+            <code>{{ seg.content }}</code>
+            <button
+              type="button"
+              class="msg-inline-copy"
+              title="Copy"
+              (click)="copyText(seg.content)"
+              aria-label="Copy code"
+            >
+              ⧉
+            </button>
+          </div>
+        } @else {
+          <div class="msg-block msg-block-code">
+            <div class="msg-block-head">
+              <span class="msg-block-label">{{ seg.language }}</span>
+              <button
+                type="button"
+                class="msg-block-copy"
+                title="Copy code"
+                (click)="copyText(seg.content)"
+                aria-label="Copy code"
+              >
+                ⧉ Copy
+              </button>
+            </div>
+            <pre class="msg-block-pre"><code>{{ seg.content }}</code></pre>
+          </div>
+        }
+      }
+      @case ('command') {
+        @if (seg.block) {
+          <div class="msg-block msg-block-command">
+            <div class="msg-block-head">
+              <span class="msg-block-label">command</span>
+              <button
+                type="button"
+                class="msg-block-copy"
+                title="Copy command"
+                (click)="copyText(seg.content)"
+                aria-label="Copy command"
+              >
+                ⧉ Copy
+              </button>
+            </div>
+            <pre class="msg-block-pre msg-command-pre"><code>{{ seg.content }}</code></pre>
+          </div>
+        } @else {
+          <div class="msg-inline msg-inline-command">
+            <code>{{ seg.content }}</code>
+            <button
+              type="button"
+              class="msg-inline-copy"
+              title="Copy"
+              (click)="copyText(seg.content)"
+              aria-label="Copy command"
+            >
+              ⧉
+            </button>
+          </div>
+        }
+      }
+    }
+  }
+</div>

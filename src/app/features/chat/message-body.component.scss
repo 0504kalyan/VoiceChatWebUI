@@ -1,0 +1,131 @@
+.message-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.msg-text {
+  white-space: pre-wrap;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.msg-block {
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #334155;
+}
+
+.msg-block-code {
+  background: #0b1220;
+  border-color: #3b4f72;
+}
+
+.msg-block-command {
+  background: #0f172a;
+  border-color: #4c7c5c;
+  border-left: 3px solid #22c55e;
+}
+
+.msg-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.35rem 0.6rem;
+  background: rgba(0, 0, 0, 0.25);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.msg-block-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+}
+
+.msg-block-command .msg-block-label {
+  color: #86efac;
+}
+
+.msg-block-copy {
+  font-size: 0.72rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid #475569;
+  background: #1e293b;
+  color: #e2e8f0;
+  cursor: pointer;
+}
+
+.msg-block-copy:hover {
+  background: #334155;
+  color: #fff;
+}
+
+.msg-block-pre {
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #e2e8f0;
+}
+
+.msg-block-code code,
+.msg-block-command code {
+  font-family: inherit;
+  white-space: pre;
+  display: block;
+}
+
+.msg-command-pre {
+  color: #bbf7d0;
+}
+
+.msg-inline {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  padding: 0.35rem 0.5rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.msg-inline-code {
+  background: #0f172a;
+  border: 1px solid #334155;
+  color: #e2e8f0;
+}
+
+.msg-inline-command {
+  background: #052e16;
+  border: 1px solid #166534;
+  color: #bbf7d0;
+}
+
+.msg-inline code {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.msg-inline-copy {
+  flex-shrink: 0;
+  padding: 0.15rem 0.35rem;
+  font-size: 0.75rem;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.2);
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.msg-inline-copy:hover {
+  opacity: 1;
+}

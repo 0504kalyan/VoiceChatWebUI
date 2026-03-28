@@ -1,0 +1,233 @@
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <h1>VoiceChat</h1>
+      <button type="button" class="btn primary" (click)="newConversation()">New chat</button>
+    </div>
+    <ul class="thread-list">
+      @for (c of conversations(); track c.id) {
+        <li class="thread-row">
+          <button
+            type="button"
+            class="thread"
+            [class.active]="selectedId() === c.id"
+            (click)="selectConversation(c.id)"
+          >
+            <span class="thread-title">{{ c.title || 'Conversation' }}</span>
+            <span class="thread-meta">{{ c.model }}</span>
+          </button>
+          <button
+            type="button"
+            class="icon-btn thread-delete"
+            title="Delete chat"
+            (click)="deleteConversation(c.id, $event)"
+            aria-label="Delete conversation"
+          >
+            🗑
+          </button>
+        </li>
+      }
+    </ul>
+  </aside>
+
+  <main class="main">
+    <header class="chat-header">
+      <div class="chat-header-inner">
+        <h2>{{ title() }}</h2>
+        @if (selectedId()) {
+          <button type="button" class="btn ghost" (click)="deleteCurrentConversation()" title="Delete this chat">
+            Delete chat
+          </button>
+        }
+      </div>
+    </header>
+
+    @if (error()) {
+      <div class="banner error">{{ error() }}</div>
+    }
+
+    <div class="messages" #messagesScroll>
+      @if (showWelcome()) {
+        <div class="welcome-banner">
+          <p class="welcome-title">Welcome — glad you’re here.</p>
+          <p class="welcome-text">
+            Ask anything, try voice with the mic, or paste code. What would you like to explore next — a quick
+            question, a coding task, or something creative?
+          </p>
+        </div>
+      }
+      @for (m of messages(); track m.id) {
+        <div class="bubble" [class.user]="m.role === 'user'" [class.assistant]="m.role === 'assistant'">
+          <div class="bubble-head">
+            <div class="role">{{ m.role }}</div>
+            @if (m.role === 'user') {
+              <div class="msg-actions">
+                <button
+                  type="button"
+                  class="icon-btn copy-btn"
+                  [class.copy-btn--done]="copyFeedbackId() === m.id"
+                  [title]="copyFeedbackId() === m.id ? 'Copied' : 'Copy'"
+                  (click)="copyMessage(m.content, m.id)"
+                  [attr.aria-label]="copyFeedbackId() === m.id ? 'Copied' : 'Copy message'"
+                >
+                  @if (copyFeedbackId() === m.id) {
+                    <span class="copy-feedback">Copied</span>
+                  } @else {
+                    <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                      <rect x="9" y="9" width="13" height="13" rx="2" />
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    </svg>
+                  }
+                </button>
+                <button
+                  type="button"
+                  class="icon-btn"
+                  title="Edit in composer"
+                  (click)="editUserMessage(m)"
+                  aria-label="Edit message"
+                >
+                  ✎
+                </button>
+              </div>
+            }
+            @if (m.role === 'assistant') {
+              <div class="msg-actions">
+                <button
+                  type="button"
+                  class="icon-btn copy-btn"
+                  [class.copy-btn--done]="copyFeedbackId() === m.id"
+                  [title]="copyFeedbackId() === m.id ? 'Copied' : 'Copy'"
+                  (click)="copyMessage(m.content, m.id)"
+                  [attr.aria-label]="copyFeedbackId() === m.id ? 'Copied' : 'Copy message'"
+                >
+                  @if (copyFeedbackId() === m.id) {
+                    <span class="copy-feedback">Copied</span>
+                  } @else {
+                    <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                      <rect x="9" y="9" width="13" height="13" rx="2" />
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    </svg>
+                  }
+                </button>
+              </div>
+            }
+          </div>
+          <div class="content">
+            <app-message-body [content]="m.content" />
+          </div>
+        </div>
+      }
+      @if (streaming().length > 0) {
+        <div class="bubble assistant streaming">
+          <div class="bubble-head">
+            <div class="role">assistant</div>
+            <div class="msg-actions">
+              <button
+                type="button"
+                class="icon-btn copy-btn"
+                [class.copy-btn--done]="copyFeedbackId() === '__streaming__'"
+                [title]="copyFeedbackId() === '__streaming__' ? 'Copied' : 'Copy'"
+                (click)="copyMessage(streaming(), '__streaming__')"
+                [attr.aria-label]="copyFeedbackId() === '__streaming__' ? 'Copied' : 'Copy message'"
+              >
+                @if (copyFeedbackId() === '__streaming__') {
+                  <span class="copy-feedback">Copied</span>
+                } @else {
+                  <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <rect x="9" y="9" width="13" height="13" rx="2" />
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                  </svg>
+                }
+              </button>
+            </div>
+          </div>
+          <div class="content">
+            <app-message-body [content]="streaming()" />
+            <span class="cursor">▍</span>
+          </div>
+        </div>
+      }
+    </div>
+
+    <footer class="composer">
+      @if (thinking()) {
+        <div class="thinking" aria-live="polite">Thinking ...!</div>
+      }
+      @if (listening()) {
+        <div class="voice-status" [class.voice-live]="speechDetected()" aria-live="polite">
+          @if (speechDetected()) {
+            <span class="voice-pill speech-on">Listening — capturing your message</span>
+            <span class="voice-hint">Auto-stops ~2s after you pause · sends to chat</span>
+          } @else {
+            <span class="voice-pill voice-pill-wait">Mic on — speak to start</span>
+            <span class="voice-hint voice-hint-wait">Listening enables when you speak</span>
+          }
+        </div>
+      }
+      <div class="composer-row">
+        @if (voiceSupported()) {
+          @if (listening()) {
+            <button
+              type="button"
+              class="btn mic"
+              [class.active]="speechDetected()"
+              [class.mic-waiting]="!speechDetected()"
+              (click)="stopVoice()"
+              title="Stop microphone"
+            >
+              ● Stop
+            </button>
+          } @else {
+            <button type="button" class="btn mic" (click)="startVoice()" title="Speak">🎤</button>
+          }
+        }
+        <input
+          #composerInput
+          type="text"
+          [(ngModel)]="input"
+          placeholder="Message… (Enter to send)"
+          (keydown.enter)="$event.preventDefault(); send()"
+          [disabled]="busy()"
+        />
+        <button
+          type="button"
+          class="btn composer-action"
+          [class.composer-action--send]="!busy()"
+          [class.composer-action--stop]="busy()"
+          (click)="busy() ? stopGeneration() : send()"
+          [disabled]="!busy() && (!input.trim() || !selectedId())"
+          [title]="busy() ? 'Stop generating' : 'Send'"
+          [attr.aria-label]="busy() ? 'Stop generating' : 'Send message'"
+        >
+          @if (busy()) {
+            <svg class="btn-icon-svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <rect x="5" y="5" width="14" height="14" rx="2" />
+            </svg>
+          } @else {
+            <svg
+              class="btn-icon-svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="m22 2-7 20-4-9-9-4Z" />
+              <path d="M22 2 11 13" />
+            </svg>
+          }
+        </button>
+      </div>
+      @if (pendingEditMessageId) {
+        <p class="edit-hint">Editing a previous message — send to replace it and get a new reply.</p>
+      }
+      <p class="hint">
+        Replies use local <strong>Ollama</strong> (free). Install from
+        <a href="https://ollama.com" target="_blank" rel="noopener">ollama.com</a>, run <code>ollama pull llama3.2</code>
+        (or another model). Each answer is stored as text + JSON on the server for this thread.
+      </p>
+    </footer>
+  </main>
+</div>
