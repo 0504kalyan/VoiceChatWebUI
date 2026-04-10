@@ -28,17 +28,15 @@
         </li>
       }
     </ul>
+    <div class="sidebar-footer">
+      <button type="button" class="btn ghost sidebar-signout" (click)="logout()" title="Sign out">Sign out</button>
+    </div>
   </aside>
 
   <main class="main">
     <header class="chat-header">
       <div class="chat-header-inner">
         <h2>{{ title() }}</h2>
-        @if (selectedId()) {
-          <button type="button" class="btn ghost" (click)="deleteCurrentConversation()" title="Delete this chat">
-            Delete chat
-          </button>
-        }
       </div>
     </header>
 
@@ -46,7 +44,7 @@
       <div class="banner error">{{ error() }}</div>
     }
 
-    <div class="messages" #messagesScroll>
+    <div class="messages" #messagesScroll [class.messages--welcome-only]="showWelcome()">
       @if (showWelcome()) {
         <div class="welcome-banner">
           <p class="welcome-title">Welcome — glad you’re here.</p>
@@ -195,7 +193,7 @@
           [class.composer-action--send]="!busy()"
           [class.composer-action--stop]="busy()"
           (click)="busy() ? stopGeneration() : send()"
-          [disabled]="!busy() && (!input.trim() || !selectedId())"
+          [disabled]="!busy() && !input.trim()"
           [title]="busy() ? 'Stop generating' : 'Send'"
           [attr.aria-label]="busy() ? 'Stop generating' : 'Send message'"
         >

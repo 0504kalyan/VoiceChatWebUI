@@ -1,0 +1,56 @@
+<div class="auth-page">
+  <div class="card">
+    <h1>Create account</h1>
+    <p class="hint">Register with Gmail: we email a code, then you choose a password.</p>
+
+    @if (error()) {
+      <div class="alert">{{ error() }}</div>
+    }
+
+    @if (step() === 1) {
+      <label class="field">
+        <span>Gmail address</span>
+        <input type="email" [(ngModel)]="email" name="email" autocomplete="email" placeholder="you@gmail.com" />
+      </label>
+      <div class="actions">
+        <button type="button" class="btn primary" [disabled]="busy() || !email.trim()" (click)="sendOtp()">
+          Send verification code
+        </button>
+      </div>
+      <button type="button" class="btn google" [disabled]="busy()" (click)="google()">Continue with Google</button>
+    } @else {
+      <p class="sent">Code sent to <strong>{{ email }}</strong></p>
+      <label class="field">
+        <span>6-digit code</span>
+        <input type="text" inputmode="numeric" maxlength="6" [(ngModel)]="code" name="code" autocomplete="one-time-code" />
+      </label>
+      <app-password-field
+        label="Password (min 8 characters)"
+        name="password"
+        autocomplete="new-password"
+        [(value)]="password"
+      />
+      <app-password-field
+        label="Confirm password"
+        name="confirm"
+        autocomplete="new-password"
+        [(value)]="confirmPassword"
+      />
+      <div class="actions">
+        <button type="button" class="btn ghost" (click)="step.set(1)">Back</button>
+        <button
+          type="button"
+          class="btn primary"
+          [disabled]="busy() || code.trim().length < 4 || password.length < 8"
+          (click)="complete()"
+        >
+          Create account
+        </button>
+      </div>
+    }
+
+    <p class="footer">
+      Already have an account? <a routerLink="/login">Sign in</a>
+    </p>
+  </div>
+</div>

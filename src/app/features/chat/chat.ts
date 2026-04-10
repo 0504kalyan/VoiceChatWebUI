@@ -1,4 +1,5 @@
 import { CommonModule } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import {
   Component,
   computed,
@@ -13,6 +14,7 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
+import { AuthService } from '../../core/services/auth.service';
 import { ChatApiService, ConversationListItem, MessageDto } from '../../core/services/chat-api.service';
 import { ChatHubService } from '../../core/services/chat-hub.service';
 import { VoiceService } from '../../core/services/voice.service';
@@ -28,6 +30,7 @@ export class ChatComponent implements OnInit, OnDestroy {
   private readonly api = inject(ChatApiService);
   private readonly hub = inject(ChatHubService);
   private readonly voice = inject(VoiceService);
+  readonly auth = inject(AuthService);
 
   private readonly messagesScroll = viewChild<ElementRef<HTMLElement>>('messagesScroll');
   private readonly composerInput = viewChild<ElementRef<HTMLInputElement>>('composerInput');
@@ -45,9 +48,9 @@ export class ChatComponent implements OnInit, OnDestroy {
   /** While waiting for the first token from the assistant. */
   readonly thinking = computed(() => this.busy() && this.streaming().length === 0);
 
-  /** Friendly empty state before the first message. */
+  /** Friendly empty state before the first message (including when no conversation exists yet). */
   readonly showWelcome = computed(
-    () => this.messages().length === 0 && !this.streaming() && !this.busy() && this.selectedId() !== null
+    () => this.messages().length === 0 && !this.streaming() && !this.busy()
   );
 
   input = '';
@@ -60,6 +63,7 @@ export class ChatComponent implements OnInit, OnDestroy {
 
   readonly title = computed(() => {
     const id = this.selectedId();
+    if (!id) return 'VoiceChat';
     const c = this.conversations().find((x) => x.id === id);
     return c?.title || 'New chat';
   });
@@ -80,18 +84,50 @@ export class ChatComponent implements OnInit, OnDestroy {
     el.scrollTop = el.scrollHeight;
   }
 
+  /** Avoid `[object Object]` when Angular passes HttpErrorResponse to the template. */
+  private formatError(e: unknown): string {
+    if (e instanceof HttpErrorResponse) {
+      const body = e.error;
+      if (body && typeof body === 'object') {
+        const o = body as Record<string, unknown>;
+        if (typeof o['message'] === 'string' && o['message'].length > 0) return o['message'];
+        if (typeof o['detail'] === 'string' && o['detail'].length > 0) return o['detail'];
+        if (typeof o['title'] === 'string' && o['title'].length > 0) return o['title'];
+      }
+      if (typeof body === 'string' && body.length > 0) return body;
+      if (e.status === 0) return 'Network error — check the API is running.';
+      if (e.statusText) return `${e.status} ${e.statusText}`.trim();
+      return `HTTP ${e.status}`;
+    }
+    if (e instanceof Error) return e.message;
+    if (typeof e === 'string') return e;
+    try {
+      return JSON.stringify(e);
+    } catch {
+      return 'Something went wrong.';
+    }
+  }
+
+  /** True if delete failed because the row is already gone (safe to drop from UI). */
+  private static isDeleteAlreadyGone(e: unknown): boolean {
+    return e instanceof HttpErrorResponse && e.status === 404;
+  }
+
   private async removeEmptyConversationIfAny(): Promise<void> {
     const id = this.selectedId();
     if (!id || this.messages().length > 0) return;
 
     try {
       await firstValueFrom(this.api.deleteConversation(id));
-      this.conversations.update((list) => list.filter((c) => c.id !== id));
-      this.selectedId.set(null);
-      this.messages.set([]);
     } catch (e) {
-      this.error.set(String(e));
+      if (!ChatComponent.isDeleteAlreadyGone(e)) {
+        this.error.set(this.formatError(e));
+        return;
+      }
     }
+    this.conversations.update((list) => list.filter((c) => c.id !== id));
+    this.selectedId.set(null);
+    this.messages.set([]);
   }
 
   async ngOnInit(): Promise<void> {
@@ -106,7 +142,7 @@ export class ChatComponent implements OnInit, OnDestroy {
         // Sync from server so message IDs match DB (needed for edit / delete-from).
         this.api.getMessages(cid).subscribe({
           next: (msgs) => this.messages.set(msgs),
-          error: (e) => this.error.set(String(e))
+          error: (e) => this.error.set(this.formatError(e))
         });
       },
       onError: (cid, message) => {
@@ -122,7 +158,7 @@ export class ChatComponent implements OnInit, OnDestroy {
         this.busy.set(false);
         this.api.getMessages(cid).subscribe({
           next: (msgs) => this.messages.set(msgs),
-          error: (e) => this.error.set(String(e))
+          error: (e) => this.error.set(this.formatError(e))
         });
       }
     });
@@ -130,10 +166,13 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.api.listConversations().subscribe({
       next: async (list) => {
         this.conversations.set(list);
-        if (list.length === 0) await this.newConversation();
-        else await this.selectConversation(list[0].id);
+        if (list.length > 0) await this.selectConversation(list[0].id);
+        else {
+          this.selectedId.set(null);
+          this.messages.set([]);
+        }
       },
-      error: (e) => this.error.set(String(e))
+      error: (e) => this.error.set(this.formatError(e))
     });
   }
 
@@ -151,7 +190,7 @@ export class ChatComponent implements OnInit, OnDestroy {
         this.conversations.update((x) => [c, ...x]);
         await this.selectConversation(c.id);
       },
-      error: (e) => this.error.set(String(e))
+      error: (e) => this.error.set(this.formatError(e))
     });
   }
 
@@ -169,7 +208,7 @@ export class ChatComponent implements OnInit, OnDestroy {
         this.messages.set(msgs);
         await this.hub.joinConversation(id);
       },
-      error: (e) => this.error.set(String(e))
+      error: (e) => this.error.set(this.formatError(e))
     });
   }
 
@@ -185,16 +224,35 @@ export class ChatComponent implements OnInit, OnDestroy {
     if (!anyOk) {
       const reason = results
         .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
-        .map((r) => r.reason)
+        .map((r) => this.formatError(r.reason))
         .join('; ');
       this.error.set(reason || 'Could not cancel generation.');
     }
   }
 
+  /** Ensures a conversation exists; creates one when the user sends their first message. */
+  private async ensureConversationForSend(): Promise<string | null> {
+    let cid = this.selectedId();
+    if (cid) return cid;
+    try {
+      const c = await firstValueFrom(this.api.createConversation({}));
+      this.conversations.update((x) => [c, ...x]);
+      this.selectedId.set(c.id);
+      this.messages.set([]);
+      await this.hub.joinConversation(c.id);
+      return c.id;
+    } catch (e) {
+      this.error.set(this.formatError(e));
+      return null;
+    }
+  }
+
   async send(mode: 'text' | 'voice' = 'text'): Promise<void> {
     const text = this.input.trim();
-    const cid = this.selectedId();
-    if (!text || !cid || this.busy()) return;
+    if (!text || this.busy()) return;
+
+    const cid = await this.ensureConversationForSend();
+    if (!cid) return;
 
     this.error.set(null);
     this.input = '';
@@ -225,7 +283,7 @@ export class ChatComponent implements OnInit, OnDestroy {
 
       await this.hub.sendMessage(cid, text, mode);
     } catch (e) {
-      this.error.set(String(e));
+      this.error.set(this.formatError(e));
       this.busy.set(false);
     }
   }
@@ -251,25 +309,22 @@ export class ChatComponent implements OnInit, OnDestroy {
   async deleteConversation(id: string, ev?: Event): Promise<void> {
     ev?.stopPropagation();
     if (!confirm('Delete this chat? It will be hidden from your list (soft delete).')) return;
+    this.error.set(null);
     try {
       await firstValueFrom(this.api.deleteConversation(id));
-      this.conversations.update((list) => list.filter((c) => c.id !== id));
-      if (this.selectedId() === id) {
-        this.selectedId.set(null);
-        this.messages.set([]);
-        const rest = this.conversations();
-        if (rest.length > 0) await this.selectConversation(rest[0].id);
-        else await this.newConversation();
-      }
     } catch (e) {
-      this.error.set(String(e));
+      if (!ChatComponent.isDeleteAlreadyGone(e)) {
+        this.error.set(this.formatError(e));
+        return;
+      }
     }
-  }
-
-  async deleteCurrentConversation(): Promise<void> {
-    const id = this.selectedId();
-    if (!id) return;
-    await this.deleteConversation(id);
+    this.conversations.update((list) => list.filter((c) => c.id !== id));
+    if (this.selectedId() === id) {
+      this.selectedId.set(null);
+      this.messages.set([]);
+      const rest = this.conversations();
+      if (rest.length > 0) await this.selectConversation(rest[0].id);
+    }
   }
 
   startVoice(): void {
@@ -292,5 +347,9 @@ export class ChatComponent implements OnInit, OnDestroy {
 
   stopVoice(): void {
     this.voice.stop();
+  }
+
+  logout(): void {
+    this.auth.logout();
   }
 }

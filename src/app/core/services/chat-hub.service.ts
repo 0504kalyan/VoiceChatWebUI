@@ -1,9 +1,11 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import * as signalR from '@microsoft/signalr';
 import { environment } from '../../../environments/environment';
+import { AuthService } from './auth.service';
 
 @Injectable({ providedIn: 'root' })
 export class ChatHubService {
+  private readonly auth = inject(AuthService);
   private hub?: signalR.HubConnection;
   private readonly base = environment.apiBaseUrl;
 
@@ -21,7 +23,9 @@ export class ChatHubService {
   ): Promise<void> {
     if (!this.hub) {
       this.hub = new signalR.HubConnectionBuilder()
-        .withUrl(`${this.base}/hubs/chat`)
+        .withUrl(`${this.base}/hubs/chat`, {
+          accessTokenFactory: () => this.auth.accessToken() ?? ''
+        })
         .withAutomaticReconnect()
         .build();
     }
