@@ -6,6 +6,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
 import { PasswordFieldComponent } from '../../../shared/password-field/password-field';
+import { isPasswordAcceptable } from '../../../shared/password-policy';
 
 @Component({
   selector: 'app-reset-password',
@@ -50,8 +51,8 @@ export class ResetPasswordComponent implements OnInit {
       this.error.set('Passwords do not match.');
       return;
     }
-    if (this.password.length < 8) {
-      this.error.set('Password must be at least 8 characters.');
+    if (!isPasswordAcceptable(this.password)) {
+      this.error.set('Meet all password requirements listed below.');
       return;
     }
     this.busy.set(true);
@@ -65,5 +66,9 @@ export class ResetPasswordComponent implements OnInit {
     } finally {
       this.busy.set(false);
     }
+  }
+
+  passwordOk(): boolean {
+    return isPasswordAcceptable(this.password);
   }
 }

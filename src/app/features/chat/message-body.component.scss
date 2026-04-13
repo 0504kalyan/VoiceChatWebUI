@@ -63,6 +63,18 @@
   color: #fff;
 }
 
+.msg-block-copy--done {
+  border-color: #166534;
+  background: rgba(22, 101, 52, 0.35);
+  color: #86efac;
+}
+
+.copy-feedback {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
 .msg-block-pre {
   margin: 0;
   padding: 0.65rem 0.75rem;
@@ -128,4 +140,15 @@
 
 .msg-inline-copy:hover {
   opacity: 1;
+}
+
+.msg-inline-copy--done {
+  border-color: #166534;
+  background: rgba(22, 101, 52, 0.35);
+  color: #86efac;
+}
+
+.inline-copy-feedback {
+  font-size: 0.68rem;
+  font-weight: 600;
 }

@@ -25,9 +25,10 @@
         <input type="text" inputmode="numeric" maxlength="6" [(ngModel)]="code" name="code" autocomplete="one-time-code" />
       </label>
       <app-password-field
-        label="Password (min 8 characters)"
+        label="Password"
         name="password"
         autocomplete="new-password"
+        [showRequirements]="true"
         [(value)]="password"
       />
       <app-password-field
@@ -41,7 +42,7 @@
         <button
           type="button"
           class="btn primary"
-          [disabled]="busy() || code.trim().length < 4 || password.length < 8"
+          [disabled]="busy() || code.trim().length < 4 || !passwordOk()"
           (click)="complete()"
         >
           Create account

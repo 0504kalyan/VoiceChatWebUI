@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
-import { Component, input, model, output, signal } from '@angular/core';
+import { Component, computed, input, model, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { evaluatePasswordRules } from '../password-policy';
 
 @Component({
   selector: 'app-password-field',
@@ -14,6 +15,9 @@ export class PasswordFieldComponent {
   autocomplete = input<string>('current-password');
   placeholder = input<string>('');
 
+  /** When true, shows live checklist (upper, lower, digit, special, length). */
+  showRequirements = input(false);
+
   /** Two-way bind to the parent password string. */
   value = model<string>('');
 
@@ -21,6 +25,8 @@ export class PasswordFieldComponent {
   enterSubmit = output<void>();
 
   protected readonly visible = signal(false);
+
+  protected readonly rules = computed(() => evaluatePasswordRules(this.value()));
 
   protected toggle(): void {
     this.visible.update((v) => !v);
