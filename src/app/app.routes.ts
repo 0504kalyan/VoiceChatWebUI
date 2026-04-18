@@ -17,8 +17,10 @@ export const routes: Routes = [
     loadComponent: () => import('./features/auth/google-callback').then((m) => m.GoogleCallbackComponent)
   },
   {
-    path: '',
+    path: 'chat',
     loadComponent: () => import('./features/chat/chat').then((m) => m.ChatComponent),
-    canMatch: [authGuard]
-  }
+    canActivate: [authGuard]
+  },
+  // `/` → login; `login` sends users with a JWT to `/chat` (see LoginComponent.ngOnInit).
+  { path: '', pathMatch: 'full', redirectTo: 'login' }
 ];

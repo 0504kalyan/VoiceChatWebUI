@@ -24,6 +24,10 @@ export class LoginComponent implements OnInit {
   readonly busy = signal(false);
 
   ngOnInit(): void {
+    if (this.auth.accessToken()) {
+      void this.router.navigate(['/chat']);
+      return;
+    }
     const err = this.route.snapshot.queryParamMap.get('error');
     if (err === 'google_not_configured') {
       this.error.set(
@@ -50,7 +54,7 @@ export class LoginComponent implements OnInit {
     try {
       const res = await firstValueFrom(this.auth.login(this.email.trim(), this.password));
       this.auth.setSession(res);
-      await this.router.navigate(['/']);
+      await this.router.navigate(['/chat']);
     } catch (e: unknown) {
       this.error.set(this.formatError(e));
     } finally {

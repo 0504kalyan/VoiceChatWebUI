@@ -26,6 +26,6 @@ export class GoogleCallbackComponent implements OnInit {
       return;
     }
     this.auth.storeAccessToken(token);
-    void this.router.navigate(['/']);
+    void this.router.navigate(['/chat']);
   }
 }
