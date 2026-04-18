@@ -1,4 +1,4 @@
 export const environment = {
   production: true,
-  apiBaseUrl: 'http://localhost:5292'
+  apiBaseUrl: 'https://voicechatapi.onrender.com'
 };

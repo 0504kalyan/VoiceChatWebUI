@@ -35,7 +35,7 @@ export class RegisterComponent implements OnInit {
     const err = this.route.snapshot.queryParamMap.get('error');
     if (err === 'google_not_configured') {
       this.error.set(
-        'Google sign-in is not configured on the API. Set Google:ClientId and Google:ClientSecret, then restart the API.'
+        'Google sign-in is not configured on the API. Set GoogleCredentials__ClientId and GoogleCredentials__ClientSecret in .env, then restart the API.'
       );
     }
   }
