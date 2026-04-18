@@ -1,5 +1,5 @@
 <div class="message-body">
-  @for (seg of segments(); track $index) {
+  @for (seg of segments(); track $index; let idx = $index) {
     @switch (seg.kind) {
       @case ('text') {
         <div class="msg-text">{{ seg.text }}</div>
@@ -11,11 +11,16 @@
             <button
               type="button"
               class="msg-inline-copy"
-              title="Copy"
-              (click)="copyText(seg.content)"
-              aria-label="Copy code"
+              [class.msg-inline-copy--done]="copiedSegmentIndex() === idx"
+              [title]="copiedSegmentIndex() === idx ? 'Copied' : 'Copy'"
+              (click)="copySegment(seg.content, idx)"
+              [attr.aria-label]="copiedSegmentIndex() === idx ? 'Copied' : 'Copy code'"
             >
-              ⧉
+              @if (copiedSegmentIndex() === idx) {
+                <span class="inline-copy-feedback">Copied</span>
+              } @else {
+                ⧉
+              }
             </button>
           </div>
         } @else {
@@ -25,11 +30,16 @@
               <button
                 type="button"
                 class="msg-block-copy"
-                title="Copy code"
-                (click)="copyText(seg.content)"
-                aria-label="Copy code"
+                [class.msg-block-copy--done]="copiedSegmentIndex() === idx"
+                [title]="copiedSegmentIndex() === idx ? 'Copied' : 'Copy code'"
+                (click)="copySegment(seg.content, idx)"
+                [attr.aria-label]="copiedSegmentIndex() === idx ? 'Copied' : 'Copy code'"
               >
-                ⧉ Copy
+                @if (copiedSegmentIndex() === idx) {
+                  <span class="copy-feedback">Copied</span>
+                } @else {
+                  ⧉ Copy
+                }
               </button>
             </div>
             <pre class="msg-block-pre"><code>{{ seg.content }}</code></pre>
@@ -44,11 +54,16 @@
               <button
                 type="button"
                 class="msg-block-copy"
-                title="Copy command"
-                (click)="copyText(seg.content)"
-                aria-label="Copy command"
+                [class.msg-block-copy--done]="copiedSegmentIndex() === idx"
+                [title]="copiedSegmentIndex() === idx ? 'Copied' : 'Copy command'"
+                (click)="copySegment(seg.content, idx)"
+                [attr.aria-label]="copiedSegmentIndex() === idx ? 'Copied' : 'Copy command'"
               >
-                ⧉ Copy
+                @if (copiedSegmentIndex() === idx) {
+                  <span class="copy-feedback">Copied</span>
+                } @else {
+                  ⧉ Copy
+                }
               </button>
             </div>
             <pre class="msg-block-pre msg-command-pre"><code>{{ seg.content }}</code></pre>
@@ -59,11 +74,16 @@
             <button
               type="button"
               class="msg-inline-copy"
-              title="Copy"
-              (click)="copyText(seg.content)"
-              aria-label="Copy command"
+              [class.msg-inline-copy--done]="copiedSegmentIndex() === idx"
+              [title]="copiedSegmentIndex() === idx ? 'Copied' : 'Copy'"
+              (click)="copySegment(seg.content, idx)"
+              [attr.aria-label]="copiedSegmentIndex() === idx ? 'Copied' : 'Copy command'"
             >
-              ⧉
+              @if (copiedSegmentIndex() === idx) {
+                <span class="inline-copy-feedback">Copied</span>
+              } @else {
+                ⧉
+              }
             </button>
           </div>
         }
