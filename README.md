@@ -34,7 +34,11 @@ To build the project run:
 ng build
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
+This will compile your project and store the build artifacts under `dist/` (for this app: **`dist/VoiceChat.Web/browser/`** for production). By default, the production build optimizes your application for performance and speed.
+
+### Deploying on Vercel
+
+Set **Output Directory** to `dist/VoiceChat.Web/browser`, or rely on [`vercel.json`](vercel.json) in this folder. If the Git repo includes multiple projects, set Vercel **Root Directory** to `WebUI/VoiceChat.Web`. See [`../../voicechat/deployment docs/vercel-and-render.md`](../../voicechat/deployment%20docs/vercel-and-render.md).
 
 ## Running unit tests
 
