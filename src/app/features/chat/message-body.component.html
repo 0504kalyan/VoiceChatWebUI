@@ -4,6 +4,13 @@
       @case ('text') {
         <div class="msg-text">{{ seg.text }}</div>
       }
+      @case ('image') {
+        <figure class="msg-image-card">
+          <img [src]="seg.src" [alt]="seg.alt" />
+          <figcaption>{{ seg.alt }}</figcaption>
+          <a class="msg-image-download" [href]="seg.src" download="chatai-image.png">Download image</a>
+        </figure>
+      }
       @case ('code') {
         @if (seg.language === 'inline') {
           <div class="msg-inline msg-inline-code">

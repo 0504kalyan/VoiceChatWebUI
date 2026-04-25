@@ -5,10 +5,12 @@ import { environment } from '../../../environments/environment';
 
 const TOKEN_KEY = 'voicechat.accessToken';
 const EMAIL_KEY = 'voicechat.email';
+const DISPLAY_NAME_KEY = 'voicechat.displayName';
 
 export interface AuthResponse {
   accessToken: string;
   email: string;
+  displayName?: string;
   userId: string;
 }
 
@@ -22,7 +24,14 @@ export class AuthService {
     typeof localStorage === 'undefined' ? null : localStorage.getItem(TOKEN_KEY)
   );
   readonly userEmail = signal<string | null>(
-    typeof localStorage === 'undefined' ? null : localStorage.getItem(EMAIL_KEY)
+    typeof localStorage === 'undefined'
+      ? null
+      : localStorage.getItem(EMAIL_KEY) || this.claimFromStoredToken('email')
+  );
+  readonly userDisplayName = signal<string | null>(
+    typeof localStorage === 'undefined'
+      ? null
+      : localStorage.getItem(DISPLAY_NAME_KEY) || this.claimFromStoredToken('name')
   );
 
   setSession(response: AuthResponse | null | undefined): void {
@@ -34,8 +43,11 @@ export class AuthService {
 
     localStorage.setItem(TOKEN_KEY, response.accessToken);
     localStorage.setItem(EMAIL_KEY, response.email);
+    const displayName = response.displayName || this.nameFromJwt(response.accessToken) || this.nameFromEmail(response.email);
+    localStorage.setItem(DISPLAY_NAME_KEY, displayName);
     this.accessToken.set(response.accessToken);
     this.userEmail.set(response.email);
+    this.userDisplayName.set(displayName);
   }
 
   /** Used after Google redirect (JWT only in query string). */
@@ -43,42 +55,74 @@ export class AuthService {
     localStorage.setItem(TOKEN_KEY, token);
     this.accessToken.set(token);
     const email = this.emailFromJwt(token);
+    const displayName = this.nameFromJwt(token) || (email ? this.nameFromEmail(email) : null);
     if (email) {
       localStorage.setItem(EMAIL_KEY, email);
       this.userEmail.set(email);
+    }
+    if (displayName) {
+      localStorage.setItem(DISPLAY_NAME_KEY, displayName);
+      this.userDisplayName.set(displayName);
     }
   }
 
   logout(): void {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(EMAIL_KEY);
+    localStorage.removeItem(DISPLAY_NAME_KEY);
     this.accessToken.set(null);
     this.userEmail.set(null);
+    this.userDisplayName.set(null);
     void this.router.navigate(['/login'], { replaceUrl: true });
   }
 
   displayName(): string {
+    const name = this.userDisplayName();
+    if (name) return name;
     const email = this.userEmail();
-    if (!email) return 'User';
+    return email ? this.nameFromEmail(email) : 'User';
+  }
+
+  private nameFromEmail(email: string): string {
     return email.split('@')[0] || email;
   }
 
+  private claimFromStoredToken(claim: 'email' | 'name'): string | null {
+    if (typeof localStorage === 'undefined') return null;
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) return null;
+    return claim === 'email' ? this.emailFromJwt(token) : this.nameFromJwt(token);
+  }
+
+  private nameFromJwt(token: string): string | null {
+    const claims = this.claimsFromJwt(token);
+    const name =
+      claims?.['name'] ??
+      claims?.['unique_name'] ??
+      claims?.['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name'];
+    return typeof name === 'string' && name.length > 0 ? name : null;
+  }
+
   private emailFromJwt(token: string): string | null {
+    const claims = this.claimsFromJwt(token);
+    const email =
+      claims?.['email'] ??
+      claims?.['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress'];
+    return typeof email === 'string' ? email : null;
+  }
+
+  private claimsFromJwt(token: string): Record<string, unknown> | null {
     try {
       const payload = token.split('.')[1];
       if (!payload) return null;
-      const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+      const normalized = payload.replaceAll('-', '+').replaceAll('_', '/');
       const json = decodeURIComponent(
         atob(normalized)
           .split('')
-          .map((c) => `%${c.charCodeAt(0).toString(16).padStart(2, '0')}`)
+          .map((c) => `%${(c.codePointAt(0) ?? 0).toString(16).padStart(2, '0')}`)
           .join('')
       );
-      const claims = JSON.parse(json) as Record<string, unknown>;
-      const email =
-        claims['email'] ??
-        claims['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress'];
-      return typeof email === 'string' ? email : null;
+      return JSON.parse(json) as Record<string, unknown>;
     } catch {
       return null;
     }

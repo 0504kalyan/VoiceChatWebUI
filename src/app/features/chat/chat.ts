@@ -48,9 +48,11 @@ export class ChatComponent implements OnInit, OnDestroy {
   readonly messages = signal<MessageDto[]>([]);
   readonly streaming = signal('');
   readonly error = signal<string | null>(null);
+  readonly notice = signal<string | null>(null);
   readonly openThreadActionsId = signal<string | null>(null);
   readonly profileMenuOpen = signal(false);
   readonly selectedAttachments = signal<LocalAttachment[]>([]);
+  readonly imageGenerationRemainingSeconds = signal<number | null>(null);
 
   /**
    * Conversations that currently have an in-flight assistant stream. Independent from the selected thread —
@@ -72,11 +74,30 @@ export class ChatComponent implements OnInit, OnDestroy {
     () => this.messages().length === 0 && !this.streaming() && !this.busyForSelected()
   );
 
+  readonly chatLimitWarning = computed(() => {
+    if (!this.selectedId() || this.busyForSelected()) return null;
+    const remaining = this.remainingMessagesInCurrentChat();
+    if (remaining <= 0) return 'This chat reached its limit. A new chat will start automatically.';
+    if (remaining <= this.limitWarningThreshold) {
+      const noun = remaining === 1 ? 'message' : 'messages';
+      return `This chat is almost full: ${remaining} ${noun} left before a new chat starts automatically.`;
+    }
+    return null;
+  });
+
   private setConversationGenerating(conversationId: string, generating: boolean): void {
     const next = new Set(this.generatingConversationIds());
     if (generating) next.add(conversationId);
     else next.delete(conversationId);
     this.generatingConversationIds.set(next);
+  }
+
+  private remainingMessagesInCurrentChat(): number {
+    return Math.max(0, this.chatMessageLimit() - this.messages().length);
+  }
+
+  private isCurrentChatAtLimit(): boolean {
+    return this.remainingMessagesInCurrentChat() <= 0;
   }
 
   input = '';
@@ -93,8 +114,16 @@ export class ChatComponent implements OnInit, OnDestroy {
    */
   private streamTokenBuffer = '';
   private streamFlushRaf: number | null = null;
+  private imageGenerationTimer: ReturnType<typeof setInterval> | null = null;
+  private imageGenerationConversationId: string | null = null;
+  readonly continuingMessageId = signal<string | null>(null);
   private readonly maxAttachmentBytes = 10 * 1024 * 1024;
   private readonly maxAttachmentCount = 6;
+  private readonly estimatedImageGenerationSeconds = 35;
+  private readonly limitWarningThreshold = 5;
+  private readonly chatMessageLimit = signal(20);
+  private readonly continuationPrompt =
+    'Continue from exactly where you stopped in the previous assistant response. Do not repeat content already written.';
 
   readonly title = computed(() => {
     const id = this.selectedId();
@@ -203,6 +232,39 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.streaming.set('');
   }
 
+  private startImageGenerationCountdown(conversationId: string): void {
+    this.stopImageGenerationCountdown();
+    this.imageGenerationConversationId = conversationId;
+    this.imageGenerationRemainingSeconds.set(this.estimatedImageGenerationSeconds);
+    this.imageGenerationTimer = setInterval(() => {
+      this.imageGenerationRemainingSeconds.update((remaining) => {
+        if (remaining === null) return null;
+        return Math.max(0, remaining - 1);
+      });
+    }, 1000);
+  }
+
+  private stopImageGenerationCountdown(conversationId?: string): void {
+    if (conversationId && this.imageGenerationConversationId !== conversationId) return;
+    if (this.imageGenerationTimer !== null) {
+      clearInterval(this.imageGenerationTimer);
+      this.imageGenerationTimer = null;
+    }
+    this.imageGenerationConversationId = null;
+    this.imageGenerationRemainingSeconds.set(null);
+  }
+
+  imageGenerationStatusText(): string {
+    const remaining = this.imageGenerationRemainingSeconds();
+    if (remaining === null) return 'Generating image...';
+    if (remaining <= 0) return 'Finishing image...';
+    return `Generating image... about ${remaining}s remaining`;
+  }
+
+  isImageGenerationForSelected(): boolean {
+    return this.imageGenerationConversationId === this.selectedId() && this.imageGenerationRemainingSeconds() !== null;
+  }
+
   /** Avoid `[object Object]` when Angular passes HttpErrorResponse to the template. */
   private formatError(e: unknown): string {
     if (e instanceof HttpErrorResponse) {
@@ -255,23 +317,38 @@ export class ChatComponent implements OnInit, OnDestroy {
     await this.hub.start({
       onToken: (cid, token) => {
         if (cid !== this.selectedId()) return;
+        this.stopImageGenerationCountdown(cid);
+        const continuingId = this.continuingMessageId();
+        if (continuingId) {
+          this.messages.update((msgs) =>
+            msgs.map((m) => (m.id === continuingId ? { ...m, content: m.content + token } : m))
+          );
+          return;
+        }
         this.streamTokenBuffer += token;
         this.scheduleStreamFlush();
       },
       onComplete: (cid) => {
         this.setConversationGenerating(cid, false);
+        this.stopImageGenerationCountdown(cid);
+        this.continuingMessageId.set(null);
         this.refreshConversationList();
         if (cid !== this.selectedId()) return;
         this.finalizeStreamingBuffer();
         this.streaming.set('');
         // Sync from server so message IDs match DB (needed for edit / delete-from).
         this.api.getMessages(cid).subscribe({
-          next: (msgs) => this.messages.set(msgs),
+          next: (msgs) => {
+            this.messages.set(msgs);
+            void this.startNewChatIfLimitReached();
+          },
           error: (e) => this.error.set(this.formatError(e))
         });
       },
       onError: (cid, message) => {
         this.setConversationGenerating(cid, false);
+        this.stopImageGenerationCountdown(cid);
+        this.continuingMessageId.set(null);
         if (cid !== this.selectedId()) return;
         this.finalizeStreamingBuffer();
         this.error.set(message);
@@ -279,6 +356,8 @@ export class ChatComponent implements OnInit, OnDestroy {
       },
       onCancelled: (cid) => {
         this.setConversationGenerating(cid, false);
+        this.stopImageGenerationCountdown(cid);
+        this.continuingMessageId.set(null);
         this.refreshConversationList();
         if (cid !== this.selectedId()) return;
         this.finalizeStreamingBuffer();
@@ -311,11 +390,19 @@ export class ChatComponent implements OnInit, OnDestroy {
     });
   }
 
+  private async startNewChatIfLimitReached(): Promise<void> {
+    if (!this.selectedId() || !this.isCurrentChatAtLimit()) return;
+    await this.createAndSelectConversation('Chat limit reached. A new chat was started automatically.');
+  }
+
   private loadGeminiModels(): void {
     this.api.getGeminiModels().subscribe({
       next: (res) => {
         const ok = res.ok !== false && !res.error;
         this.geminiModelNames.set(ok ? (res.models ?? []) : []);
+        if (ok && typeof res.maxHistoryMessages === 'number' && res.maxHistoryMessages >= 4) {
+          this.chatMessageLimit.set(res.maxHistoryMessages);
+        }
       },
       error: () => this.geminiModelNames.set([])
     });
@@ -340,21 +427,37 @@ export class ChatComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     if (this.copyFeedbackClear !== null) clearTimeout(this.copyFeedbackClear);
     if (this.streamFlushRaf !== null) cancelAnimationFrame(this.streamFlushRaf);
+    this.continuingMessageId.set(null);
+    this.stopImageGenerationCountdown();
     this.voice.stop();
+  }
+
+  private async createAndSelectConversation(notice?: string): Promise<string | null> {
+    try {
+      const c = await firstValueFrom(this.api.createConversation({}));
+      this.conversations.update((list) => [c, ...list]);
+      this.selectedId.set(c.id);
+      this.messages.set([]);
+      this.clearStreamingPipeline();
+      this.stickToBottom = true;
+      this.pendingEditMessageId = null;
+      this.selectedAttachments.set([]);
+      await this.hub.joinConversation(c.id);
+      if (notice) this.notice.set(notice);
+      return c.id;
+    } catch (e) {
+      this.error.set(this.formatError(e));
+      return null;
+    }
   }
 
   async newConversation(): Promise<void> {
     await this.removeEmptyConversationIfAny();
     this.error.set(null);
+    this.notice.set(null);
     this.pendingEditMessageId = null;
     this.selectedAttachments.set([]);
-    this.api.createConversation({}).subscribe({
-      next: async (c) => {
-        this.conversations.update((x) => [c, ...x]);
-        await this.selectConversation(c.id);
-      },
-      error: (e) => this.error.set(this.formatError(e))
-    });
+    await this.createAndSelectConversation();
   }
 
   async selectConversation(id: string): Promise<void> {
@@ -363,9 +466,11 @@ export class ChatComponent implements OnInit, OnDestroy {
     await this.removeEmptyConversationIfAny();
 
     this.error.set(null);
+    this.notice.set(null);
     this.pendingEditMessageId = null;
     this.selectedAttachments.set([]);
     this.openThreadActionsId.set(null);
+    this.continuingMessageId.set(null);
     this.selectedId.set(id);
     this.clearStreamingPipeline();
     this.stickToBottom = true;
@@ -400,40 +505,37 @@ export class ChatComponent implements OnInit, OnDestroy {
    * Ensures a conversation exists before sending (e.g. first message from welcome with no thread yet).
    * Returns null if creation fails.
    */
-  private async ensureConversationForSend(): Promise<string | null> {
+  private async ensureConversationForSend(forceCurrentChat = false): Promise<string | null> {
     const existing = this.selectedId();
-    if (existing) return existing;
+    if (existing && (forceCurrentChat || !this.isCurrentChatAtLimit())) return existing;
 
-    try {
-      const c = await firstValueFrom(this.api.createConversation({}));
-      this.conversations.update((list) => [c, ...list]);
-      this.selectedId.set(c.id);
-      this.messages.set([]);
-      this.clearStreamingPipeline();
-      this.stickToBottom = true;
-      await this.hub.joinConversation(c.id);
-      return c.id;
-    } catch (e) {
-      this.error.set(this.formatError(e));
-      return null;
+    if (existing && this.isCurrentChatAtLimit()) {
+      return this.createAndSelectConversation('Previous chat reached its limit, so a new chat was started automatically.');
     }
+
+    return this.createAndSelectConversation();
   }
 
-  async send(mode: 'text' | 'voice' = 'text'): Promise<void> {
+  async send(mode: 'text' | 'voice' | 'continue' = 'text', forceCurrentChat = false): Promise<void> {
     const text = this.input.trim();
     const attachments = this.selectedAttachments();
     if (!text && attachments.length === 0) return;
+    const isContinuation = mode === 'continue';
 
-    const cid = await this.ensureConversationForSend();
+    const cid = await this.ensureConversationForSend(forceCurrentChat);
     if (!cid) return;
     if (this.generatingConversationIds().has(cid)) return;
 
     this.error.set(null);
+    this.notice.set(null);
     this.input = '';
     this.selectedAttachments.set([]);
-    this.clearStreamingPipeline();
+    if (!isContinuation) this.clearStreamingPipeline();
     this.stickToBottom = true;
     this.setConversationGenerating(cid, true);
+    if (!isContinuation && this.isImageGenerationRequest(text, attachments)) {
+      this.startImageGenerationCountdown(cid);
+    }
 
     try {
       const editId = this.pendingEditMessageId;
@@ -446,24 +548,68 @@ export class ChatComponent implements OnInit, OnDestroy {
         });
       }
 
-      // Optimistic user line; IDs refresh from server when the stream completes.
-      const displayText = this.buildUserDisplayContent(text, attachments);
-      this.messages.update((m) => [
-        ...m,
-        {
-          id: crypto.randomUUID(),
-          role: 'user',
-          content: displayText,
-          inputMode: mode,
-          createdAt: new Date().toISOString()
-        }
-      ]);
+      if (!isContinuation) {
+        // Optimistic user line; IDs refresh from server when the stream completes.
+        const displayText = this.buildUserDisplayContent(text, attachments);
+        this.messages.update((m) => [
+          ...m,
+          {
+            id: crypto.randomUUID(),
+            role: 'user',
+            content: displayText,
+            inputMode: mode,
+            createdAt: new Date().toISOString(),
+            isGenerationComplete: true
+          }
+        ]);
+      }
 
       await this.hub.sendMessage(cid, text, mode, attachments);
     } catch (e) {
       this.error.set(this.formatError(e));
       this.setConversationGenerating(cid, false);
+      this.continuingMessageId.set(null);
+      this.stopImageGenerationCountdown(cid);
     }
+  }
+
+  canContinueFromMessage(message: MessageDto, index: number): boolean {
+    return (
+      message.role === 'assistant' &&
+      message.isGenerationComplete === false &&
+      index === this.messages().length - 1 &&
+      !this.busyForSelected()
+    );
+  }
+
+  continueGeneration(): void {
+    if (!this.selectedId() || this.busyForSelected()) return;
+    const target = this.messages().at(-1);
+    if (target?.role !== 'assistant' || target.isGenerationComplete !== false) return;
+    this.continuingMessageId.set(target.id);
+    this.input = this.continuationPrompt;
+    this.selectedAttachments.set([]);
+    void this.send('continue', true);
+  }
+
+  private isImageGenerationRequest(text: string, attachments: LocalAttachment[]): boolean {
+    const prompt = text.toLowerCase();
+    const wantsImageOutput =
+      prompt.includes('create image') ||
+      prompt.includes('create an image') ||
+      prompt.includes('generate image') ||
+      prompt.includes('generate an image') ||
+      prompt.includes('make an image') ||
+      prompt.includes('design an image') ||
+      prompt.includes('draw ') ||
+      prompt.includes('enhance') ||
+      prompt.includes('upscale') ||
+      prompt.includes('restore image') ||
+      prompt.includes('improve this image') ||
+      prompt.includes('return the same image');
+
+    const hasImageAttachment = attachments.some((a) => a.contentType.startsWith('image/'));
+    return wantsImageOutput && (hasImageAttachment || prompt.includes('image') || prompt.includes('picture') || prompt.includes('photo'));
   }
 
   triggerFilePicker(): void {
@@ -526,9 +672,10 @@ export class ChatComponent implements OnInit, OnDestroy {
   }
 
   private buildUserDisplayContent(text: string, attachments: LocalAttachment[]): string {
+    if (text === this.continuationPrompt) return 'Continue';
     if (attachments.length === 0) return text;
-    const names = attachments.map((f) => `${f.fileName} (${this.formatFileSize(f.size)})`).join(', ');
-    return text ? `${text}\n\nAttached files: ${names}` : `Attached files: ${names}`;
+    const countText = attachments.length === 1 ? '1 file attached' : `${attachments.length} files attached`;
+    return text ? `${text}\n\n${countText}` : countText;
   }
 
   copyMessage(content: string, messageId: string): void {

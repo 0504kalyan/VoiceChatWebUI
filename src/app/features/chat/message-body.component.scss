@@ -10,6 +10,32 @@
   word-break: break-word;
 }
 
+.msg-image-card {
+  margin: 0;
+  display: grid;
+  gap: 0.45rem;
+  max-width: min(520px, 100%);
+}
+
+.msg-image-card img {
+  display: block;
+  max-width: 100%;
+  border-radius: 12px;
+  border: 1px solid #334155;
+  background: #0f172a;
+}
+
+.msg-image-card figcaption {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.msg-image-download {
+  width: fit-content;
+  font-size: 0.78rem;
+  color: #93c5fd;
+}
+
 .msg-block {
   border-radius: 10px;
   overflow: hidden;

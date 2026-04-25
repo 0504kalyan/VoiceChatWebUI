@@ -162,9 +162,6 @@
 
 .profile-wrap {
   position: relative;
-}
-
-.profile-wrap {
   margin-left: 0.25rem;
 }
 
@@ -286,14 +283,27 @@
   background: #151b26;
 }
 
-.banner.error {
+.banner {
   flex-shrink: 0;
   margin: 0.75rem 1.25rem 0;
   padding: 0.6rem 0.75rem;
   border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.banner.error {
   background: #3f1d1d;
   color: #fecaca;
-  font-size: 0.9rem;
+}
+
+.banner.info {
+  background: #10243d;
+  color: #bfdbfe;
+}
+
+.banner.warning {
+  background: #3d2a10;
+  color: #fde68a;
 }
 
 .welcome-banner {
@@ -476,6 +486,34 @@
 
 .thinking-dots span:nth-child(3) {
   animation-delay: 0.3s;
+}
+
+.image-generation-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: #cbd5e1;
+  font-size: 0.92rem;
+}
+
+.image-generation-status .thinking-dots {
+  min-height: auto;
+  padding: 0;
+}
+
+.continue-btn {
+  margin-top: 0.7rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid #3b82f6;
+  border-radius: 999px;
+  background: #1d4ed8;
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+
+.continue-btn:hover {
+  background: #2563eb;
 }
 
 @keyframes thinking-dot {

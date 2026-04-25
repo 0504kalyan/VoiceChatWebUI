@@ -15,6 +15,7 @@ export interface MessageDto {
   content: string;
   inputMode: string;
   createdAt: string;
+  isGenerationComplete: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -37,7 +38,7 @@ export class ChatApiService {
 
   /** Gemini model choices configured by the API — anonymous health endpoint. */
   getGeminiModels() {
-    return this.http.get<{ ok?: boolean; defaultModel?: string; models?: string[]; error?: string }>(
+    return this.http.get<{ ok?: boolean; defaultModel?: string; models?: string[]; maxHistoryMessages?: number; error?: string }>(
       `${this.base}/api/health/gemini/models`
     );
   }
