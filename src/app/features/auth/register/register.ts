@@ -86,7 +86,7 @@ export class RegisterComponent implements OnInit {
   }
 
   google(): void {
-    window.location.href = this.auth.googleLoginUrl();
+    globalThis.location.href = this.auth.googleLoginUrl();
   }
 
   passwordOk(): boolean {

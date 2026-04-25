@@ -31,7 +31,7 @@ export class LoginComponent implements OnInit {
     const err = this.route.snapshot.queryParamMap.get('error');
     if (err === 'google_not_configured') {
       this.error.set(
-        'Google sign-in is not configured on the API. Set GoogleCredentials__ClientId and GoogleCredentials__ClientSecret in .env (see Api .env.example) or environment, add http://localhost:5292/signin-google in Google Cloud Console, then restart the API.'
+        'Google sign-in is not configured on the API. Set GoogleCredentials__ClientId and GoogleCredentials__ClientSecret on the API, then add the exact authorizedRedirectUri reported by /api/auth/google/status in Google Cloud Console.'
       );
     } else if (err === 'google_claims') {
       this.error.set('Google did not return your email. Try again or use email/password.');
@@ -63,6 +63,6 @@ export class LoginComponent implements OnInit {
   }
 
   google(): void {
-    window.location.href = this.auth.googleLoginUrl();
+    globalThis.location.href = this.auth.googleLoginUrl();
   }
 }
