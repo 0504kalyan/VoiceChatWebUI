@@ -1,5 +1,5 @@
 export const environment = {
   production: true,
-  // Set to your public API URL when you deploy the Angular app separately from the API.
-  apiBaseUrl: 'https://voicechatwebui.onrender.com'
+  // Public API origin. Do not point this at the Angular/WebUI origin.
+  apiBaseUrl: 'https://voicechatapi.onrender.com'
 };
