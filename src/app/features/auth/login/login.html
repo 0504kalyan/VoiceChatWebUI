@@ -1,33 +1,38 @@
 <div class="auth-page">
-  <div class="card">
-    <h1>Sign in</h1>
-    <p class="hint">Use your Gmail and password, or continue with Google.</p>
+  <div class="auth-shell">
+    <div class="card">
+      <div class="brand-mark">
+        <img src="chat-brand.png" alt="ChatAI" />
+      </div>
+      <h1>Sign in</h1>
+      <p class="hint">Use your Gmail and password, or continue with Google.</p>
 
-    @if (error()) {
-      <div class="alert">{{ error() }}</div>
-    }
+      @if (error()) {
+        <div class="alert">{{ error() }}</div>
+      }
 
-    <label class="field">
-      <span>Gmail address</span>
-      <input type="email" [(ngModel)]="email" name="email" autocomplete="username" placeholder="you@gmail.com" />
-    </label>
-    <app-password-field
-      label="Password"
-      name="password"
-      autocomplete="current-password"
-      [(value)]="password"
-      (enterSubmit)="submit()"
-    />
-    <div class="actions actions-row">
-      <a routerLink="/forgot-password" class="text-link">Forgot password?</a>
-      <button type="button" class="btn primary" [disabled]="busy() || !email.trim() || !password" (click)="submit()">
-        Sign in
-      </button>
+      <label class="field">
+        <span>Gmail address</span>
+        <input type="email" [(ngModel)]="email" name="email" autocomplete="username" placeholder="you@gmail.com" />
+      </label>
+      <app-password-field
+        label="Password"
+        name="password"
+        autocomplete="current-password"
+        [(value)]="password"
+        (enterSubmit)="submit()"
+      />
+      <div class="actions actions-row">
+        <a routerLink="/forgot-password" class="text-link">Forgot password?</a>
+        <button type="button" class="btn primary" [disabled]="busy() || !email.trim() || !password" (click)="submit()">
+          Sign in
+        </button>
+      </div>
+      <button type="button" class="btn google" [disabled]="busy()" (click)="google()">Continue with Google</button>
+
+      <p class="footer footer-centered">
+        No account? <a routerLink="/register">Create one</a>
+      </p>
     </div>
-    <button type="button" class="btn google" [disabled]="busy()" (click)="google()">Continue with Google</button>
-
-    <p class="footer">
-      No account? <a routerLink="/register">Create one</a>
-    </p>
   </div>
 </div>
