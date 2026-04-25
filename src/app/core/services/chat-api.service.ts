@@ -30,8 +30,8 @@ export class ChatApiService {
     return this.http.post<ConversationListItem>(`${this.base}/api/conversations`, body ?? {});
   }
 
-  /** Switch Gemini model for this thread (next assistant reply uses it). */
-  patchConversation(id: string, body: { model: string }) {
+  /** Update thread settings such as title or Gemini model. */
+  patchConversation(id: string, body: { model?: string; title?: string | null }) {
     return this.http.patch<ConversationListItem>(`${this.base}/api/conversations/${id}`, body);
   }
 

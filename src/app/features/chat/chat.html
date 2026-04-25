@@ -16,54 +16,61 @@
             <span class="thread-title" [attr.title]="displayThreadTitle(c)">{{ displayThreadTitle(c) }}</span>
             <span class="thread-meta">{{ c.model }}</span>
           </button>
-          <button
-            type="button"
-            class="icon-btn thread-delete"
-            title="Delete chat"
-            (click)="deleteConversation(c.id, $event)"
-            aria-label="Delete conversation"
-          >
-            🗑
-          </button>
+          <div class="thread-actions-wrap">
+            <button
+              type="button"
+              class="icon-btn thread-actions-btn"
+              title="Chat actions"
+              aria-label="Chat actions"
+              aria-haspopup="menu"
+              [attr.aria-expanded]="openThreadActionsId() === c.id"
+              (click)="toggleThreadActions(c.id, $event)"
+            >
+              ⋯
+            </button>
+            @if (openThreadActionsId() === c.id) {
+              <div class="dropdown-menu thread-actions-menu" role="menu">
+                <button type="button" role="menuitem" (click)="renameConversation(c.id, $event)">Rename chat</button>
+                <button type="button" role="menuitem" (click)="archiveConversation(c.id, $event)">Archive chat</button>
+                <button type="button" role="menuitem" class="danger" (click)="deleteConversationFromMenu(c.id, $event)">
+                  Delete chat
+                </button>
+              </div>
+            }
+          </div>
         </li>
       }
     </ul>
-    <div class="sidebar-footer">
-      <button type="button" class="btn ghost sidebar-signout" (click)="logout()" title="Sign out">Sign out</button>
-    </div>
   </aside>
 
   <main class="main">
     <header class="chat-header">
       <div class="chat-header-inner">
         <h2 [attr.title]="selectedId() ? title() : null">{{ title() }}</h2>
-        @if (selectedId()) {
-          <div class="chat-header-actions">
-            <div class="model-picker">
-              <label for="chatModelSelect">Model</label>
-              <select
-                id="chatModelSelect"
-                class="model-select"
-                [value]="selectedConversationModel() ?? ''"
-                (change)="onConversationModelChange($any($event.target).value)"
-                [title]="'Gemini model for new replies in this chat'"
-              >
-                @for (m of modelSelectOptions(); track m) {
-                  <option [value]="m">{{ m }}</option>
-                }
-              </select>
+        <div class="profile-wrap">
+          <button
+            type="button"
+            class="profile-badge"
+            (click)="profileMenuOpen.set(!profileMenuOpen())"
+            aria-haspopup="menu"
+            [attr.aria-expanded]="profileMenuOpen()"
+            [title]="auth.userEmail() ?? 'Profile'"
+          >
+            {{ auth.displayName() }}
+          </button>
+          @if (profileMenuOpen()) {
+            <div class="dropdown-menu profile-menu" role="menu">
+              <div class="profile-summary">
+                <span class="profile-name">{{ auth.displayName() }}</span>
+                <span class="profile-email">{{ auth.userEmail() ?? 'Signed in' }}</span>
+              </div>
+              <button type="button" role="menuitem" (click)="openSettings()">Settings</button>
+              <button type="button" role="menuitem">Theme: Dark</button>
+              <button type="button" role="menuitem">Help & feedback</button>
+              <button type="button" role="menuitem" class="danger" (click)="logout()">Logout</button>
             </div>
-            <button
-              type="button"
-              class="btn ghost chat-header-delete"
-              title="Delete this chat"
-              (click)="deleteConversation(selectedId()!, $event)"
-              aria-label="Delete this chat"
-            >
-              Delete chat
-            </button>
-          </div>
-        }
+          }
+        </div>
       </div>
     </header>
 
@@ -89,7 +96,7 @@
       @for (m of messages(); track m.id) {
         <div class="bubble" [class.user]="m.role === 'user'" [class.assistant]="m.role === 'assistant'">
           <div class="bubble-head">
-            <div class="role">{{ m.role }}</div>
+            <div class="role">{{ roleLabel(m.role) }}</div>
             @if (m.role === 'user') {
               <div class="msg-actions">
                 <button
@@ -150,7 +157,7 @@
       @if (busyForSelected()) {
         <div class="bubble assistant streaming" aria-live="polite" [attr.aria-busy]="streaming().length === 0">
           <div class="bubble-head">
-            <div class="role">assistant</div>
+            <div class="role">ChatAI</div>
             @if (streaming().length > 0) {
               <div class="msg-actions">
                 <button
@@ -201,39 +208,76 @@
           }
         </div>
       }
-      <div class="composer-row">
-        @if (voiceSupported()) {
-          @if (listening()) {
-            <button
-              type="button"
-              class="btn mic"
-              [class.active]="speechDetected()"
-              [class.mic-waiting]="!speechDetected()"
-              (click)="stopVoice()"
-              title="Stop microphone"
-            >
-              ● Stop
-            </button>
-          } @else {
-            <button type="button" class="btn mic" (click)="startVoice()" title="Speak">🎤</button>
+      <input
+        #fileInput
+        class="file-input"
+        type="file"
+        multiple
+        accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt,.csv,.json,.md,.ppt,.pptx,.xls,.xlsx"
+        (change)="onFilesSelected($event)"
+      />
+      @if (selectedAttachments().length > 0) {
+        <div class="attachment-list">
+          @for (file of selectedAttachments(); track file.id) {
+            <span class="attachment-chip" [title]="file.fileName">
+              <span>{{ file.fileName }}</span>
+              <small>{{ formatFileSize(file.size) }}</small>
+              <button type="button" (click)="removeAttachment(file.id)" aria-label="Remove attachment">×</button>
+            </span>
           }
-        }
+        </div>
+      }
+      <div class="composer-row">
+        <button type="button" class="composer-icon-btn attach-btn" (click)="triggerFilePicker()" [disabled]="busyForSelected()" title="Attach files">
+          +
+        </button>
         <textarea
           #composerInput
           class="composer-input"
           rows="1"
           [(ngModel)]="input"
-          placeholder="Message… Enter to send"
+          placeholder="Ask anything"
           (keydown)="onComposerKeydown($event)"
           [disabled]="busyForSelected()"
         ></textarea>
+        <div class="model-picker composer-model-picker">
+          <label for="chatModelSelect">Model</label>
+          <select
+            id="chatModelSelect"
+            class="model-select"
+            [value]="selectedConversationModel() ?? ''"
+            (change)="onConversationModelChange($any($event.target).value)"
+            [title]="'Gemini model for new replies in this chat'"
+            [disabled]="busyForSelected() || !selectedId()"
+          >
+            @for (m of modelSelectOptions(); track m) {
+              <option [value]="m">{{ m }}</option>
+            }
+          </select>
+        </div>
+        @if (voiceSupported()) {
+          @if (listening()) {
+            <button
+              type="button"
+              class="composer-icon-btn mic"
+              [class.active]="speechDetected()"
+              [class.mic-waiting]="!speechDetected()"
+              (click)="stopVoice()"
+              title="Stop microphone"
+            >
+              ●
+            </button>
+          } @else {
+            <button type="button" class="composer-icon-btn mic" (click)="startVoice()" title="Speak">🎙</button>
+          }
+        }
         <button
           type="button"
-          class="btn composer-action"
+          class="composer-icon-btn composer-action"
           [class.composer-action--send]="!busyForSelected()"
           [class.composer-action--stop]="busyForSelected()"
           (click)="busyForSelected() ? stopGeneration() : send()"
-          [disabled]="!busyForSelected() && !input.trim()"
+          [disabled]="!busyForSelected() && !canSendMessage()"
           [title]="busyForSelected() ? 'Stop generating' : 'Send'"
           [attr.aria-label]="busyForSelected() ? 'Stop generating' : 'Send message'"
         >
@@ -261,11 +305,6 @@
       @if (pendingEditMessageId) {
         <p class="edit-hint">Editing a previous message — send to replace it and get a new reply.</p>
       }
-      <p class="hint">
-        Replies use <strong>Google Gemini</strong> through the API. Configure <code>Gemini__ApiKey</code> on the backend and choose
-        <code>gemini-2.5-flash</code> / <code>gemini-2.5-flash-lite</code> / <code>gemini-2.5-pro</code> as needed.
-        Tune <code>Gemini:MaxOutputTokens</code> and <code>MaxHistoryMessages</code> in the API. Messages are stored on the server.
-      </p>
     </footer>
   </main>
 </div>

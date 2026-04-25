@@ -17,9 +17,14 @@ import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
 import { ChatApiService, ConversationListItem, MessageDto } from '../../core/services/chat-api.service';
-import { ChatHubService } from '../../core/services/chat-hub.service';
+import { ChatHubService, ChatUploadAttachment } from '../../core/services/chat-hub.service';
 import { VoiceService } from '../../core/services/voice.service';
 import { MessageBodyComponent } from './message-body.component';
+
+interface LocalAttachment extends ChatUploadAttachment {
+  id: string;
+  size: number;
+}
 
 @Component({
   selector: 'app-chat',
@@ -36,12 +41,16 @@ export class ChatComponent implements OnInit, OnDestroy {
 
   private readonly messagesScroll = viewChild<ElementRef<HTMLElement>>('messagesScroll');
   private readonly composerInput = viewChild<ElementRef<HTMLTextAreaElement>>('composerInput');
+  private readonly fileInput = viewChild<ElementRef<HTMLInputElement>>('fileInput');
 
   readonly conversations = signal<ConversationListItem[]>([]);
   readonly selectedId = signal<string | null>(null);
   readonly messages = signal<MessageDto[]>([]);
   readonly streaming = signal('');
   readonly error = signal<string | null>(null);
+  readonly openThreadActionsId = signal<string | null>(null);
+  readonly profileMenuOpen = signal(false);
+  readonly selectedAttachments = signal<LocalAttachment[]>([]);
 
   /**
    * Conversations that currently have an in-flight assistant stream. Independent from the selected thread —
@@ -84,6 +93,8 @@ export class ChatComponent implements OnInit, OnDestroy {
    */
   private streamTokenBuffer = '';
   private streamFlushRaf: number | null = null;
+  private readonly maxAttachmentBytes = 10 * 1024 * 1024;
+  private readonly maxAttachmentCount = 6;
 
   readonly title = computed(() => {
     const id = this.selectedId();
@@ -96,6 +107,17 @@ export class ChatComponent implements OnInit, OnDestroy {
   displayThreadTitle(c: ConversationListItem): string {
     const t = c.title?.trim();
     return t && t.length > 0 ? t : 'New chat';
+  }
+
+  roleLabel(role: string): string {
+    return role === 'assistant' ? 'ChatAI' : this.auth.displayName();
+  }
+
+  canSendMessage(): boolean {
+    return (
+      !this.busyForSelected() &&
+      (this.input.trim().length > 0 || this.selectedAttachments().length > 0)
+    );
   }
 
   /** Model tag stored for the selected conversation (Gemini). */
@@ -325,6 +347,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     await this.removeEmptyConversationIfAny();
     this.error.set(null);
     this.pendingEditMessageId = null;
+    this.selectedAttachments.set([]);
     this.api.createConversation({}).subscribe({
       next: async (c) => {
         this.conversations.update((x) => [c, ...x]);
@@ -341,6 +364,8 @@ export class ChatComponent implements OnInit, OnDestroy {
 
     this.error.set(null);
     this.pendingEditMessageId = null;
+    this.selectedAttachments.set([]);
+    this.openThreadActionsId.set(null);
     this.selectedId.set(id);
     this.clearStreamingPipeline();
     this.stickToBottom = true;
@@ -396,7 +421,8 @@ export class ChatComponent implements OnInit, OnDestroy {
 
   async send(mode: 'text' | 'voice' = 'text'): Promise<void> {
     const text = this.input.trim();
-    if (!text) return;
+    const attachments = this.selectedAttachments();
+    if (!text && attachments.length === 0) return;
 
     const cid = await this.ensureConversationForSend();
     if (!cid) return;
@@ -404,6 +430,7 @@ export class ChatComponent implements OnInit, OnDestroy {
 
     this.error.set(null);
     this.input = '';
+    this.selectedAttachments.set([]);
     this.clearStreamingPipeline();
     this.stickToBottom = true;
     this.setConversationGenerating(cid, true);
@@ -420,22 +447,88 @@ export class ChatComponent implements OnInit, OnDestroy {
       }
 
       // Optimistic user line; IDs refresh from server when the stream completes.
+      const displayText = this.buildUserDisplayContent(text, attachments);
       this.messages.update((m) => [
         ...m,
         {
           id: crypto.randomUUID(),
           role: 'user',
-          content: text,
+          content: displayText,
           inputMode: mode,
           createdAt: new Date().toISOString()
         }
       ]);
 
-      await this.hub.sendMessage(cid, text, mode);
+      await this.hub.sendMessage(cid, text, mode, attachments);
     } catch (e) {
       this.error.set(this.formatError(e));
       this.setConversationGenerating(cid, false);
     }
+  }
+
+  triggerFilePicker(): void {
+    this.fileInput()?.nativeElement.click();
+  }
+
+  async onFilesSelected(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const files = Array.from(input.files ?? []);
+    input.value = '';
+    if (files.length === 0) return;
+
+    const current = this.selectedAttachments();
+    const slots = this.maxAttachmentCount - current.length;
+    if (slots <= 0) {
+      this.error.set(`You can attach up to ${this.maxAttachmentCount} files per message.`);
+      return;
+    }
+
+    const next: LocalAttachment[] = [];
+    for (const file of files.slice(0, slots)) {
+      if (file.size > this.maxAttachmentBytes) {
+        this.error.set(`${file.name} is too large. Max size is ${this.formatFileSize(this.maxAttachmentBytes)}.`);
+        continue;
+      }
+      next.push(await this.fileToAttachment(file));
+    }
+
+    if (next.length > 0) {
+      this.error.set(null);
+      this.selectedAttachments.set([...current, ...next]);
+    }
+  }
+
+  removeAttachment(id: string): void {
+    this.selectedAttachments.update((files) => files.filter((f) => f.id !== id));
+  }
+
+  formatFileSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  private async fileToAttachment(file: File): Promise<LocalAttachment> {
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result ?? ''));
+      reader.onerror = () => reject(reader.error ?? new Error('Could not read file.'));
+      reader.readAsDataURL(file);
+    });
+    const base64Data = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+    return {
+      id: crypto.randomUUID(),
+      fileName: file.name,
+      contentType: file.type || 'application/octet-stream',
+      base64Data,
+      size: file.size
+    };
+  }
+
+  private buildUserDisplayContent(text: string, attachments: LocalAttachment[]): string {
+    if (attachments.length === 0) return text;
+    const names = attachments.map((f) => `${f.fileName} (${this.formatFileSize(f.size)})`).join(', ');
+    return text ? `${text}\n\nAttached files: ${names}` : `Attached files: ${names}`;
   }
 
   copyMessage(content: string, messageId: string): void {
@@ -465,9 +558,9 @@ export class ChatComponent implements OnInit, OnDestroy {
     void this.send();
   }
 
-  async deleteConversation(id: string, ev?: Event): Promise<void> {
+  async deleteConversation(id: string, ev?: Event, confirmMessage = 'Delete this chat? It will be hidden from your list.'): Promise<void> {
     ev?.stopPropagation();
-    if (!confirm('Delete this chat? It will be hidden from your list (soft delete).')) return;
+    if (!confirm(confirmMessage)) return;
     this.error.set(null);
     try {
       await firstValueFrom(this.api.deleteConversation(id));
@@ -485,6 +578,42 @@ export class ChatComponent implements OnInit, OnDestroy {
       const rest = this.conversations();
       if (rest.length > 0) await this.selectConversation(rest[0].id);
     }
+  }
+
+  toggleThreadActions(id: string, ev: Event): void {
+    ev.stopPropagation();
+    this.openThreadActionsId.set(this.openThreadActionsId() === id ? null : id);
+  }
+
+  renameConversation(id: string, ev?: Event): void {
+    ev?.stopPropagation();
+    this.openThreadActionsId.set(null);
+    const currentConversation = this.conversations().find((c) => c.id === id);
+    const current = currentConversation ? this.displayThreadTitle(currentConversation) : '';
+    const defaultValue = current === 'New chat' ? '' : current;
+    const title = prompt('Rename chat', defaultValue);
+    if (title === null) return;
+
+    this.api.patchConversation(id, { title }).subscribe({
+      next: (dto) => {
+        this.conversations.update((list) =>
+          list.map((c) => (c.id === id ? { ...c, title: dto.title, updatedAt: dto.updatedAt } : c))
+        );
+      },
+      error: (e) => this.error.set(this.formatError(e))
+    });
+  }
+
+  async archiveConversation(id: string, ev?: Event): Promise<void> {
+    ev?.stopPropagation();
+    this.openThreadActionsId.set(null);
+    await this.deleteConversation(id, undefined, 'Archive this chat? It will be hidden from your chat list.');
+  }
+
+  async deleteConversationFromMenu(id: string, ev?: Event): Promise<void> {
+    ev?.stopPropagation();
+    this.openThreadActionsId.set(null);
+    await this.deleteConversation(id);
   }
 
   startVoice(): void {
@@ -510,6 +639,12 @@ export class ChatComponent implements OnInit, OnDestroy {
   }
 
   logout(): void {
+    this.profileMenuOpen.set(false);
     this.auth.logout();
+  }
+
+  openSettings(): void {
+    this.profileMenuOpen.set(false);
+    alert('Settings panel is coming soon.');
   }
 }

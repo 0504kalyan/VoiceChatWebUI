@@ -3,6 +3,12 @@ import * as signalR from '@microsoft/signalr';
 import { environment } from '../../../environments/environment';
 import { AuthService } from './auth.service';
 
+export interface ChatUploadAttachment {
+  fileName: string;
+  contentType: string;
+  base64Data: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ChatHubService {
   private readonly auth = inject(AuthService);
@@ -52,9 +58,14 @@ export class ChatHubService {
     await this.hub!.invoke('JoinConversation', conversationId);
   }
 
-  async sendMessage(conversationId: string, content: string, inputMode: 'text' | 'voice'): Promise<void> {
+  async sendMessage(
+    conversationId: string,
+    content: string,
+    inputMode: 'text' | 'voice',
+    attachments: ChatUploadAttachment[] = []
+  ): Promise<void> {
     await this.ensureConnected();
-    await this.hub!.invoke('SendMessage', conversationId, content, inputMode);
+    await this.hub!.invoke('SendMessage', conversationId, content, inputMode, attachments);
   }
 
   async cancelGeneration(conversationId: string): Promise<void> {

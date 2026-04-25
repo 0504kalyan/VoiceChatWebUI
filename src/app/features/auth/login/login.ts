@@ -42,10 +42,31 @@ export class LoginComponent implements OnInit {
 
   private formatError(e: unknown): string {
     if (e instanceof HttpErrorResponse) {
-      const body = e.error as { message?: string } | undefined;
-      return body?.message ?? e.message;
+      return this.formatHttpError(e);
     }
+    if (e instanceof Error) return e.message;
     return String(e);
+  }
+
+  private formatHttpError(e: HttpErrorResponse): string {
+    const fromBody = this.messageFromErrorBody(e.error);
+    if (fromBody) return fromBody;
+    if (e.status === 0) {
+      return 'Network error. Check that the deployed API URL is reachable and CORS allows this web app.';
+    }
+    return e.message;
+  }
+
+  private messageFromErrorBody(body: unknown): string | null {
+    if (typeof body === 'string') return body || null;
+    if (!body || typeof body !== 'object') return null;
+
+    const o = body as Record<string, unknown>;
+    for (const key of ['message', 'detail', 'title']) {
+      const value = o[key];
+      if (typeof value === 'string' && value.length > 0) return value;
+    }
+    return null;
   }
 
   async submit(): Promise<void> {
