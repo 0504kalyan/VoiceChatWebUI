@@ -19,7 +19,7 @@ export class RegisterComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
-  readonly step = signal<1 | 2>(1);
+  readonly step = signal<1 | 2 | 3>(1);
   email = '';
   code = '';
   password = '';
@@ -35,7 +35,7 @@ export class RegisterComponent implements OnInit {
     const err = this.route.snapshot.queryParamMap.get('error');
     if (err === 'google_not_configured') {
       this.error.set(
-        'Google sign-in is not configured on the API. Set GoogleCredentials__ClientId and GoogleCredentials__ClientSecret in .env, then restart the API.'
+        'Google sign-in is not configured correctly. Set Google__ClientId and Google__ClientSecret using a Web OAuth client id ending with .apps.googleusercontent.com, then restart the API.'
       );
     }
   }
@@ -54,6 +54,19 @@ export class RegisterComponent implements OnInit {
     try {
       await firstValueFrom(this.auth.registerSendOtp(this.email.trim()));
       this.step.set(2);
+    } catch (e: unknown) {
+      this.error.set(this.formatError(e));
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  async validateOtp(): Promise<void> {
+    this.error.set(null);
+    this.busy.set(true);
+    try {
+      await firstValueFrom(this.auth.registerValidateOtp(this.email.trim(), this.code.trim()));
+      this.step.set(3);
     } catch (e: unknown) {
       this.error.set(this.formatError(e));
     } finally {
@@ -93,3 +106,4 @@ export class RegisterComponent implements OnInit {
     return isPasswordAcceptable(this.password);
   }
 }
+

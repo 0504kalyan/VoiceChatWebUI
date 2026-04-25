@@ -40,9 +40,9 @@ This will compile your project and store the build artifacts under `dist/` (for 
 
 Set **Output Directory** to `dist/VoiceChat.Web/browser`, or rely on [`vercel.json`](vercel.json) in this folder. If the Git repo includes multiple projects, set Vercel **Root Directory** to `WebUI/VoiceChat.Web`.
 
-Production builds use `src/environments/environment.ts`, which currently points to `https://voicechatapi.onrender.com`. If your API origin changes, update that file before building.
+Production builds use `src/environments/environment.ts` — set `apiBaseUrl` to your deployed API origin before building.
 
-On the API, allow your Vercel origin in CORS (e.g. `Cors__Origins__0` = `https://your-app.vercel.app`). See [`../../voicechat/deployment docs/vercel-and-render.md`](../../voicechat/deployment%20docs/vercel-and-render.md).
+On the API, allow your web app origin in CORS (e.g. `Cors__Origins__0` = `https://your-app.example.com`).
 
 ## Running unit tests
 

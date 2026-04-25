@@ -30,15 +30,15 @@ export class ChatApiService {
     return this.http.post<ConversationListItem>(`${this.base}/api/conversations`, body ?? {});
   }
 
-  /** Switch Ollama model for this thread (next assistant reply uses it). */
+  /** Switch Gemini model for this thread (next assistant reply uses it). */
   patchConversation(id: string, body: { model: string }) {
     return this.http.patch<ConversationListItem>(`${this.base}/api/conversations/${id}`, body);
   }
 
-  /** Names from local Ollama (same as `ollama list`) — anonymous health endpoint. */
-  getOllamaModels() {
-    return this.http.get<{ ok?: boolean; models?: string[]; error?: string }>(
-      `${this.base}/api/health/ollama/models`
+  /** Gemini model choices configured by the API — anonymous health endpoint. */
+  getGeminiModels() {
+    return this.http.get<{ ok?: boolean; defaultModel?: string; models?: string[]; error?: string }>(
+      `${this.base}/api/health/gemini/models`
     );
   }
 

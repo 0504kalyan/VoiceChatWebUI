@@ -42,6 +42,10 @@ export class AuthService {
     return this.http.post<{ message: string }>(`${this.base}/api/auth/register/send-otp`, { email });
   }
 
+  registerValidateOtp(email: string, code: string) {
+    return this.http.post<{ message: string }>(`${this.base}/api/auth/register/validate-otp`, { email, code });
+  }
+
   registerComplete(email: string, code: string, password: string) {
     return this.http.post<AuthResponse>(`${this.base}/api/auth/register/complete`, { email, code, password });
   }

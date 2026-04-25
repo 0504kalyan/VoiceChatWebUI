@@ -18,12 +18,25 @@
         </button>
       </div>
       <button type="button" class="btn google" [disabled]="busy()" (click)="google()">Continue with Google</button>
-    } @else {
+    } @else if (step() === 2) {
       <p class="sent">Code sent to <strong>{{ email }}</strong></p>
       <label class="field">
         <span>6-digit code</span>
         <input type="text" inputmode="numeric" maxlength="6" [(ngModel)]="code" name="code" autocomplete="one-time-code" />
       </label>
+      <div class="actions">
+        <button type="button" class="btn ghost" [disabled]="busy()" (click)="step.set(1)">Back</button>
+        <button
+          type="button"
+          class="btn primary"
+          [disabled]="busy() || code.trim().length < 6"
+          (click)="validateOtp()"
+        >
+          Validate OTP
+        </button>
+      </div>
+    } @else {
+      <p class="sent">OTP validated for <strong>{{ email }}</strong></p>
       <app-password-field
         label="Password"
         name="password"
@@ -38,11 +51,11 @@
         [(value)]="confirmPassword"
       />
       <div class="actions">
-        <button type="button" class="btn ghost" (click)="step.set(1)">Back</button>
+        <button type="button" class="btn ghost" [disabled]="busy()" (click)="step.set(2)">Back</button>
         <button
           type="button"
           class="btn primary"
-          [disabled]="busy() || code.trim().length < 4 || !passwordOk()"
+          [disabled]="busy() || !passwordOk()"
           (click)="complete()"
         >
           Create account

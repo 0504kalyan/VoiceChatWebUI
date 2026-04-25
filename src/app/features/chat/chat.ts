@@ -98,21 +98,21 @@ export class ChatComponent implements OnInit, OnDestroy {
     return t && t.length > 0 ? t : 'New chat';
   }
 
-  /** Model tag stored for the selected conversation (Ollama). */
+  /** Model tag stored for the selected conversation (Gemini). */
   readonly selectedConversationModel = computed(() => {
     const id = this.selectedId();
     if (!id) return null;
     return this.conversations().find((c) => c.id === id)?.model ?? null;
   });
 
-  /** Pulled model names from Ollama (`ollama list` via API). */
-  private readonly ollamaModelNames = signal<string[]>([]);
+  /** Gemini model names configured by the API. */
+  private readonly geminiModelNames = signal<string[]>([]);
 
-  /** Options in the header dropdown: union of Ollama list + current thread model. */
+  /** Options in the header dropdown: union of configured Gemini list + current thread model. */
   readonly modelSelectOptions = computed(() => {
-    const set = new Set<string>(this.ollamaModelNames());
+    const set = new Set<string>(this.geminiModelNames());
     const cur = this.selectedConversationModel();
-    if (cur) set.add(cur);
+    if (cur?.startsWith('gemini-')) set.add(cur);
     return [...set].sort((a, b) => a.localeCompare(b));
   });
 
@@ -228,7 +228,7 @@ export class ChatComponent implements OnInit, OnDestroy {
   }
 
   async ngOnInit(): Promise<void> {
-    this.loadOllamaModels();
+    this.loadGeminiModels();
 
     await this.hub.start({
       onToken: (cid, token) => {
@@ -289,13 +289,13 @@ export class ChatComponent implements OnInit, OnDestroy {
     });
   }
 
-  private loadOllamaModels(): void {
-    this.api.getOllamaModels().subscribe({
+  private loadGeminiModels(): void {
+    this.api.getGeminiModels().subscribe({
       next: (res) => {
         const ok = res.ok !== false && !res.error;
-        this.ollamaModelNames.set(ok ? (res.models ?? []) : []);
+        this.geminiModelNames.set(ok ? (res.models ?? []) : []);
       },
-      error: () => this.ollamaModelNames.set([])
+      error: () => this.geminiModelNames.set([])
     });
   }
 
