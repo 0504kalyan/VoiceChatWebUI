@@ -149,21 +149,22 @@ export class ChatComponent implements OnInit, OnDestroy {
     );
   }
 
-  /** Model tag stored for the selected conversation (Gemini). */
+  /** Model tag stored for the selected conversation (Gemini or ollama:...). */
   readonly selectedConversationModel = computed(() => {
     const id = this.selectedId();
     if (!id) return null;
     return this.conversations().find((c) => c.id === id)?.model ?? null;
   });
 
-  /** Gemini model names configured by the API. */
+  /** Gemini + Ollama model ids configured by the API. */
   private readonly geminiModelNames = signal<string[]>([]);
 
-  /** Options in the header dropdown: union of configured Gemini list + current thread model. */
+  /** Options in the header dropdown: union of configured list + current thread model. */
   readonly modelSelectOptions = computed(() => {
     const set = new Set<string>(this.geminiModelNames());
     const cur = this.selectedConversationModel();
     if (cur?.startsWith('gemini-')) set.add(cur);
+    if (cur?.startsWith('ollama:')) set.add(cur);
     return [...set].sort((a, b) => a.localeCompare(b));
   });
 

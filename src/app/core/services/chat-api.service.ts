@@ -31,12 +31,12 @@ export class ChatApiService {
     return this.http.post<ConversationListItem>(`${this.base}/api/conversations`, body ?? {});
   }
 
-  /** Update thread settings such as title or Gemini model. */
+  /** Update thread settings such as title or LLM model (Gemini id or ollama:model). */
   patchConversation(id: string, body: { model?: string; title?: string | null }) {
     return this.http.patch<ConversationListItem>(`${this.base}/api/conversations/${id}`, body);
   }
 
-  /** Gemini model choices configured by the API — anonymous health endpoint. */
+  /** Gemini + Ollama model ids from the API — anonymous health endpoint. */
   getGeminiModels() {
     return this.http.get<{ ok?: boolean; defaultModel?: string; models?: string[]; maxHistoryMessages?: number; error?: string }>(
       `${this.base}/api/health/gemini/models`
